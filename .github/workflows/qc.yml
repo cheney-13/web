@@ -1,0 +1,73 @@
+name: Visual Spec QC (Mode B 真實比對)
+
+# 只靠 GitHub:此 workflow 用 GitHub Actions 當「後端」,
+# 讀 Figma(REST)+ 抓測試站 DOM(Playwright)+ 跑引擎 → 產出真實報告,commit 回 repo。
+# GitHub Pages 提供 visual-spec-qc/reports/latest.json,網頁工具讀它顯示真實結果。
+#
+# 使用前:repo Settings → Secrets and variables → Actions → 新增 secret「FIGMA_TOKEN」(Figma 唯讀 token)。
+
+on:
+  workflow_dispatch:            # Actions 頁手動「Run workflow」,可填參數(留空則用 reports.config.json)
+    inputs:
+      fileKey:
+        description: "Figma file key(留空用 config)"
+        required: false
+      nodeId:
+        description: "Figma node-id,如 11696-7310(留空用 config)"
+        required: false
+      siteUrl:
+        description: "測試網站 URL(留空用 config)"
+        required: false
+      widths:
+        description: "覆寫尺寸寬度,逗號分隔如 1440,768,375(留空用 Figma frame 的 @寬度)"
+        required: false
+  # 需要排程時解除下一行註解(每天 01:00 UTC)
+  # schedule: [{ cron: "0 1 * * *" }]
+
+permissions:
+  contents: write               # 讓 CI 能把 reports/ commit 回 repo
+
+concurrency:
+  group: visual-spec-qc
+  cancel-in-progress: true
+
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: visual-spec-qc } }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: 安裝 Playwright + Chromium
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: 執行真實比對
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          QC_FILEKEY: ${{ github.event.inputs.fileKey }}
+          QC_NODEID:  ${{ github.event.inputs.nodeId }}
+          QC_SITEURL: ${{ github.event.inputs.siteUrl }}
+          QC_WIDTHS:  ${{ github.event.inputs.widths }}
+        run: |
+          if [ -z "$FIGMA_TOKEN" ]; then
+            echo "::error::尚未設定 FIGMA_TOKEN secret(repo Settings → Secrets → Actions)"; exit 1
+          fi
+          python3 src/ci_qc.py reports.config.json
+
+      - name: Commit 報告回 repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          if git diff --staged --quiet; then
+            echo "報告無變更,略過 commit"
+          else
+            git commit -m "chore(qc): 更新真實比對報告 [skip ci]"
+            git push
+          fi

@@ -1,0 +1,8 @@
+{
+  "_note": "GitHub Actions 真實比對設定。fileKey/nodeId = Figma about section;siteUrl = 測試站。selectors 可選:未標 data-figma-id 的站,給 'key→CSS 選擇器' 對照檔路徑。可用 workflow 輸入覆寫。",
+  "fileKey": "nKPnENddbezQMZ5AVAKs7c",
+  "nodeId": "11696-7310",
+  "siteUrl": "https://bizdev.medialand.com.tw/demo/2021_02_MX_website/#/about",
+  "outDir": "reports",
+  "selectors": null
+}

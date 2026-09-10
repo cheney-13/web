@@ -30,6 +30,7 @@ import run_section              # noqa: E402
 import report_html              # noqa: E402
 import figma_rest as frest      # noqa: E402
 import server                   # noqa: E402
+import ci_qc                    # noqa: E402
 
 
 def load(name):
@@ -429,6 +430,43 @@ class TestFigmaRest(unittest.TestCase):
                           "computed": {"color": "rgb(0,0,0)"}}]}   # 明顯不符
         report, cov, plan = auto_qa.run(doc, dom)
         self.assertEqual(report["totals"]["CODE"], 1)               # 綁 token 不符 → 程式問題
+
+
+# ------------------------------------------------------------------ #
+class TestCIAssemble(unittest.TestCase):
+    """GitHub Actions 真實比對:設計事實(REST)× 已抓 DOM → 逐尺寸結果(離線測 assemble)。"""
+
+    def _sizes(self):
+        doc = load("figma_rest_section.json")
+        return frest.section_size_docs(doc, {"VariableID:1:10": "color/brand", "VariableID:1:20": "fs/h1"})
+
+    def test_assemble_builds_per_size_results(self):
+        sizes = self._sizes()          # about @1440 / @375
+        captured = {
+            1440: {"nodes": [
+                {"key": "hero:title", "computed": {"color": "rgb(0,0,0)", "fontSize": "48px",
+                                                   "fontWeight": "700", "fontFamily": "Noto Sans TC"}},  # 顏色不符 → CODE
+                {"key": "sec:cta", "computed": {"backgroundColor": "rgb(199,0,103)", "borderRadius": "8px",
+                                                "gap": "12px", "paddingLeft": "24px", "paddingRight": "24px",
+                                                "paddingTop": "16px", "paddingBottom": "16px"}}]},
+            375: {"nodes": [
+                {"key": "hero:title", "computed": {"color": "rgb(199,0,103)", "fontSize": "32px",
+                                                   "fontWeight": "700", "fontFamily": "Noto Sans TC"}}]},  # 全符
+        }
+        results = ci_qc.assemble(sizes, captured)
+        self.assertEqual([r["width"] for r in results], [1440, 375])
+        big = next(r for r in results if r["width"] == 1440)
+        self.assertGreaterEqual(big["counts"]["code"], 1)          # 桌機主標色不符 → 程式問題
+        self.assertIn(big["status"], ("good", "warn", "bad"))
+        self.assertTrue(all("j" in row and "prop" in row for row in big["rows"]))
+        sml = next(r for r in results if r["width"] == 375)
+        self.assertEqual(sml["score"], 100)                        # 手機全符 → 100%
+
+    def test_assemble_missing_dom_marks_human(self):
+        sizes = self._sizes()
+        results = ci_qc.assemble(sizes, {1440: {"nodes": []}, 375: {"nodes": []}})
+        # DOM 抓不到元素 → 標「待人工/無法比對」,不會誤判成程式/設計
+        self.assertTrue(all(r["counts"]["code"] == 0 and r["counts"]["design"] == 0 for r in results))
 
 
 # ------------------------------------------------------------------ #

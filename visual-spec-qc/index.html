@@ -360,7 +360,8 @@ td.judge{white-space:nowrap} .badge{font-size:11px;font-weight:700;padding:2px 8
 
       <div class="foot">
         <span class="hint">連結僅供讀取結構;不會送出任何帳密或個資。</span>
-        <button class="btn pri" id="runBtn" onclick="startRun()">▶　進行核對測試</button>
+        <button class="btn" onclick="loadLatestReport()">📥 載入最新真實報告</button>
+        <button class="btn pri" id="runBtn" onclick="startRun()">▶　進行核對測試（示範）</button>
       </div>
     </div>
   </section>
@@ -650,6 +651,20 @@ function startRealRun(api){
    .catch(e=>showError("無法連線資料來源:"+e.message));
 }
 function showError(msg){ goto("setup"); toast("❌ "+msg); }
+
+// ---- 載入 GitHub Actions 產出的真實報告(reports/latest.json,同源)----
+function loadLatestReport(){
+  toast("讀取最新 CI 報告…");
+  fetch("reports/latest.json",{cache:"no-store"})
+   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+   .then(j=>{
+     const res=(j.results||[]).map((r,i)=>({id:"sz"+i, name:r.name, bp:(r.width?r.width+"px":""),
+       score:r.score, status:r.status, counts:r.counts, rows:r.rows||[], coverage:r.coverage||{}}));
+     if(!res.length){ toast("CI 報告沒有結果"); return; }
+     RESULTS=res; showResult(); toast("已載入真實報告 · "+(j.generated||"")+"("+(j.section||"")+")");
+   })
+   .catch(()=>toast("尚無 CI 報告 — 請先到 GitHub Actions 執行「Visual Spec QC」一次"));
+}
 
 // ---------- Mode B:總覽(單欄卡片) ----------
 function showResult(){

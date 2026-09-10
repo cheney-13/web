@@ -114,6 +114,7 @@ visual-spec-qc/
 │   ├── figma_rest.py     # 用 Figma REST 抽設計事實(後端真實運作用,需 token)
 │   ├── figma_section.py  # 一個 section 放多 RWD 尺寸 → 自動列出各尺寸 + 展開批次
 │   ├── server.py         # 後端服務:網頁真實比對(Figma REST × 網站 DOM × 引擎)
+│   ├── ci_qc.py          # GitHub Actions 真實比對批次 → reports/latest.json(只靠 GitHub)
 │   ├── run_section.py    # 多尺寸核對:逐尺寸抓+比對 → 合併總覽(串起整條鏈)
 │   ├── run_diff.py       # 執行差異(解決/回歸/未解決)
 │   ├── extract_dom.js    # 注入網頁蒐集 [data-figma-id] 的 computed
@@ -167,11 +168,27 @@ visual-spec-qc/
 
 ---
 
-## 真實運作(後端服務,讓網頁不只是原型)
+## 真實運作 A:只靠 GitHub(GitHub Actions,免自架伺服器 · 推薦)
 
-網頁工具(`index.html`)在瀏覽器裡受同源安全限制,**無法**跨站讀網站 DOM、直接呼叫 Figma、
-或跑 Python 引擎——所以純靜態頁只能是示範。要「貼連結就得到真實、因專案而異的結果」,
-用 `server.py` 這支純標準庫後端:它替瀏覽器做那三件事,網頁只顯示回傳的真實結果。
+沒有後端主機、沒有線上空間,只有 GitHub 也能真跑——用 **GitHub Actions** 當執行環境:
+CI 內打 Figma REST + Playwright 抓站 + 跑引擎 → 把真實報告 commit 回 repo,GitHub Pages 提供,
+網頁讀 `reports/latest.json` 顯示真結果。
+
+**啟用(一次性):**
+1. Figma → Settings → Security → Personal access tokens → 建唯讀 token。
+2. GitHub repo → Settings → Secrets and variables → Actions → 新增 secret **`FIGMA_TOKEN`**(貼上 token)。
+3. 編輯 `visual-spec-qc/reports.config.json`(Figma fileKey/nodeId、測試站 URL;未標 `data-figma-id`
+   的站再給 `selectors` 對照)。
+
+**執行:** GitHub → Actions →「Visual Spec QC」→ Run workflow(或設排程)。約 1–3 分鐘後,
+`visual-spec-qc/reports/latest.json` 更新;打開工具頁按「📥 載入最新真實報告」即顯示真結果。
+
+- CI 腳本:`src/ci_qc.py`(figma_rest × fetch_dom × 引擎)· workflow:`.github/workflows/qc.yml`
+- token 只存在 GitHub Secret,**不進前端、不進 commit**。測試站需公開可連。
+
+## 真實運作 B:本機 / 私有後端(`server.py`)
+
+若有主機,`server.py`(純標準庫)可即時服務:網頁 fetch 它的 `/api/run` 拿即時結果。
 
 ```bash
 export FIGMA_TOKEN=figd_xxx      # Figma personal access token(唯讀即可)
