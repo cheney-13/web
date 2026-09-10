@@ -1,0 +1,73 @@
+{
+  "generated": "2026-09-10 02:54",
+  "section": "about",
+  "site": "https://bizdev.medialand.com.tw/demo/2021_02_MX_website/#/about",
+  "results": [
+    {
+      "name": "about @1440",
+      "width": 1440,
+      "score": 100,
+      "status": "good",
+      "counts": {
+        "code": 0,
+        "design": 0,
+        "human": 0,
+        "pass": 0,
+        "accepted": 0
+      },
+      "rows": [],
+      "coverage": {
+        "frame": "about @1440",
+        "url": "about",
+        "width": 1440,
+        "matched": [],
+        "design_only": [],
+        "dom_only": []
+      }
+    },
+    {
+      "name": "about @576",
+      "width": 576,
+      "score": 100,
+      "status": "good",
+      "counts": {
+        "code": 0,
+        "design": 0,
+        "human": 0,
+        "pass": 0,
+        "accepted": 0
+      },
+      "rows": [],
+      "coverage": {
+        "frame": "about @576",
+        "url": "about",
+        "width": 576,
+        "matched": [],
+        "design_only": [],
+        "dom_only": []
+      }
+    },
+    {
+      "name": "about @375",
+      "width": 375,
+      "score": 100,
+      "status": "good",
+      "counts": {
+        "code": 0,
+        "design": 0,
+        "human": 0,
+        "pass": 0,
+        "accepted": 0
+      },
+      "rows": [],
+      "coverage": {
+        "frame": "about @375",
+        "url": "about",
+        "width": 375,
+        "matched": [],
+        "design_only": [],
+        "dom_only": []
+      }
+    }
+  ]
+}
