@@ -51,9 +51,11 @@ def assemble(sizes, captured, out_dir=None):
         if out_dir:
             slug = re.sub(r"[^0-9A-Za-z]+", "_", str(s["frame"])).strip("_").lower() or "size"
             open(os.path.join(out_dir, f"report_{slug}.html"), "w", encoding="utf-8").write(render_report(report))
+        empty = (t["checks"] == 0)          # 沒有任何可比對節點(缺對位)→ 不可當成 100%
         results.append({
             "name": s["frame"], "width": s["width"],
-            "score": t["score"], "status": STATUS_MAP[st],
+            "score": t["score"], "status": ("info" if empty else STATUS_MAP[st]),
+            "checks": t["checks"], "empty": empty,
             "counts": {"code": t["CODE"], "design": t["DESIGN"], "human": t["NEEDS_HUMAN"],
                        "pass": t["pass"], "accepted": t.get("ACCEPTED", 0)},
             "rows": web_rows(report),
@@ -67,7 +69,55 @@ def _cfg_get(cfg, key, env):
     return v if v else cfg.get(key)
 
 
+def _write_latest(out_dir, section, site, results):
+    latest = {"generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+              "section": section, "site": site, "results": results}
+    open(os.path.join(out_dir, "latest.json"), "w", encoding="utf-8").write(
+        json.dumps(latest, ensure_ascii=False, indent=2))
+    print("=" * 60)
+    print(f"真實比對完成 · {section} · {len(results)} 項")
+    for r in results:
+        tag = " ⚠無可比對(缺對位)" if r.get("empty") else ""
+        print(f"  {str(r['name'])[:20]:20} {r['score']:3}%{tag}  程式{r['counts']['code']} 設計{r['counts']['design']} 待人工{r['counts']['human']} 通過{r['counts']['pass']}")
+    print("輸出 →", os.path.join(out_dir, "latest.json"))
+    return latest
+
+
+def run_spec(cfg, base_dir):
+    """specFile 模式:用既有的『設計規格(帶 CSS 選擇器)』對照即時抓的網站 DOM。
+    適合設計稿尚未用 key 命名、但網站有穩定 CSS 選擇器的情況——立即產出有比對的真結果。"""
+    import fetch_dom, qa_engine
+    site = _cfg_get(cfg, "siteUrl", "QC_SITEURL")
+    if not site:
+        raise SystemExit("specFile 模式需要 siteUrl")
+    width = int(os.environ.get("QC_WIDTHS", "").split(",")[0] or cfg.get("width", 1440))
+    out_dir = os.path.join(base_dir, cfg.get("outDir", "reports"))
+    os.makedirs(out_dir, exist_ok=True)
+    spec = json.load(open(os.path.join(base_dir, cfg["specFile"]), encoding="utf-8"))
+    nodes = spec.get("nodes", [])
+    selmap = {n["selector"]: n["selector"] for n in nodes if n.get("selector")}
+    cap = fetch_dom.capture(site, [width], selmap=selmap)
+    dom = cap[0][1]
+    report = qa_engine.run(spec, dom)
+    t = report["totals"]
+    st = qa.status_of(t["score"], t["CODE"])
+    name = cfg.get("name") or spec.get("figmaFile") or "設計規格對照"
+    slug = re.sub(r"[^0-9A-Za-z]+", "_", str(name)).strip("_").lower() or "spec"
+    open(os.path.join(out_dir, f"report_{slug}.html"), "w", encoding="utf-8").write(render_report(report))
+    results = [{
+        "name": name, "width": width,
+        "score": t["score"], "status": ("info" if t["checks"] == 0 else STATUS_MAP[st]),
+        "checks": t["checks"], "empty": t["checks"] == 0,
+        "counts": {"code": t["CODE"], "design": t["DESIGN"], "human": t["NEEDS_HUMAN"],
+                   "pass": t["pass"], "accepted": t.get("ACCEPTED", 0)},
+        "rows": web_rows(report), "coverage": {},
+    }]
+    return _write_latest(out_dir, name, site, results)
+
+
 def run(cfg, base_dir, token):
+    if cfg.get("specFile"):
+        return run_spec(cfg, base_dir)
     import fetch_dom
     file_key = _cfg_get(cfg, "fileKey", "QC_FILEKEY")
     node_id  = _cfg_get(cfg, "nodeId",  "QC_NODEID")
@@ -106,26 +156,16 @@ def run(cfg, base_dir, token):
     captured = {w: data for (w, data) in fetch_dom.capture(site_url, widths, selmap=selectors)}
 
     results = assemble(sizes, captured, out_dir)
-    latest = {"generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-              "section": section, "site": site_url, "results": results}
-    open(os.path.join(out_dir, "latest.json"), "w", encoding="utf-8").write(
-        json.dumps(latest, ensure_ascii=False, indent=2))
-
-    print("=" * 60)
-    print(f"真實比對完成 · section「{section}」· {len(results)} 個尺寸")
-    for r in results:
-        print(f"  {r['name']:16} {r['score']:3}%  程式{r['counts']['code']} 設計{r['counts']['design']} 待人工{r['counts']['human']}")
-    print("輸出 →", os.path.join(out_dir, "latest.json"))
-    return latest
+    return _write_latest(out_dir, section, site_url, results)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法: FIGMA_TOKEN=xxx python3 src/ci_qc.py <reports.config.json>"); sys.exit(1)
-    token = os.environ.get("FIGMA_TOKEN")
-    if not token:
-        print("缺 FIGMA_TOKEN 環境變數(GitHub Actions 由 Secret 提供)"); sys.exit(2)
     cfg_path = sys.argv[1]
     cfg = json.load(open(cfg_path, encoding="utf-8"))
     base_dir = os.path.dirname(os.path.abspath(cfg_path))
+    token = os.environ.get("FIGMA_TOKEN")
+    if not cfg.get("specFile") and not token:   # specFile 模式免 Figma token
+        print("缺 FIGMA_TOKEN 環境變數(GitHub Actions 由 Secret 提供)"); sys.exit(2)
     run(cfg, base_dir, token)

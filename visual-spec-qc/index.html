@@ -473,7 +473,7 @@ let currentMode=null, curDetail=null, edited=false, ranOnce=false, RESULTS=null,
 const SEV={code:{t:"程式問題",c:"var(--bad)",bg:"var(--bad-bg)",who:"前端工程師"},
   design:{t:"設計問題",c:"var(--info)",bg:"var(--info-bg)",who:"設計師"},
   human:{t:"待人工",c:"var(--human)",bg:"var(--human-bg)",who:"人工確認"}};
-const STATUS={good:{c:"var(--good)",bg:"var(--good-bg)",light:"🟢"},warn:{c:"var(--warn)",bg:"var(--warn-bg)",light:"🟡"},bad:{c:"var(--bad)",bg:"var(--bad-bg)",light:"🔴"}};
+const STATUS={good:{c:"var(--good)",bg:"var(--good-bg)",light:"🟢"},warn:{c:"var(--warn)",bg:"var(--warn-bg)",light:"🟡"},bad:{c:"var(--bad)",bg:"var(--bad-bg)",light:"🔴"},info:{c:"var(--human)",bg:"var(--human-bg)",light:"⚪"}};
 const VERDICT={good:"可上線",warn:"建議修正後上線",bad:"不建議上線"};
 const DATA=[
  {id:"d", name:"about 桌機版", bp:"桌機 1440", score:80, status:"warn", verdict:"建議修正後上線",
@@ -659,7 +659,8 @@ function loadLatestReport(){
    .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
    .then(j=>{
      const res=(j.results||[]).map((r,i)=>({id:"sz"+i, name:r.name, bp:(r.width?r.width+"px":""),
-       score:r.score, status:r.status, counts:r.counts, rows:r.rows||[], coverage:r.coverage||{}}));
+       score:r.score, status:r.status, counts:r.counts, rows:r.rows||[], coverage:r.coverage||{},
+       checks:r.checks, empty:r.empty}));
      if(!res.length){ toast("CI 報告沒有結果"); return; }
      RESULTS=res; showResult(); toast("已載入真實報告 · "+(j.generated||"")+"("+(j.section||"")+")");
    })
@@ -680,7 +681,18 @@ function showResult(){
   }
   LAST_ITEMS=items;
   document.getElementById("ovCards").innerHTML=items.map(d=>{
-    const s=STATUS[d.status];
+    const s=STATUS[d.status]||STATUS.info;
+    if(d.empty){   // 無可比對節點(缺對位)—— 誠實顯示,不當 100%
+      return `<div class="card ov" onclick="openDetail('${d.id}')">
+        <div class="stripe" style="background:${s.c}"></div>
+        <div class="ov-in">
+          <div class="name">⚪ ${d.name} <span class="bp">${d.bp}</span></div>
+          <div class="scoreline"><span class="score" style="color:var(--ink-3)">—</span>
+            <span class="verdict" style="color:var(--warn)">無可比對(缺對位)</span></div>
+          <div class="chips"><span class="chip" style="color:#7a5a1e;background:var(--warn-bg)">此尺寸有連上並讀取,但找不到可對位的節點</span></div>
+          <div class="open">查看說明 →</div>
+        </div></div>`;
+    }
     return `<div class="card ov" onclick="openDetail('${d.id}')">
       <div class="stripe" style="background:${s.c}"></div>
       <div class="ov-in">
@@ -718,9 +730,14 @@ function openDetail(id){
   document.getElementById("overview").style.display="none";
   document.getElementById("detail").style.display="block";
   document.getElementById("dName").textContent=d.name+(d.bp?" · "+d.bp:"");
-  document.getElementById("dScore").textContent=d.score+"%";
-  document.getElementById("dScore").style.color=s.c;
-  const v=document.getElementById("dVerdict"); v.textContent=d.verdict||VERDICT[d.status]; v.style.color=s.c;
+  document.getElementById("dScore").textContent=d.empty?"—":d.score+"%";
+  document.getElementById("dScore").style.color=d.empty?"var(--ink-3)":s.c;
+  const v=document.getElementById("dVerdict"); v.textContent=d.empty?"無可比對(缺對位)":(d.verdict||VERDICT[d.status]); v.style.color=d.empty?"var(--warn)":s.c;
+  if(d.empty){
+    document.getElementById("v-kpi").innerHTML=`<div class="legend">⚪ <b>此尺寸有連上並讀取,但找不到可對位的節點</b>——通常是設計稿圖層未用 <code>key:</code> 命名,或網站元素未標 <code>data-figma-id</code>,或提供的 CSS 選擇器對不到。<br>解法:依交付規範加 key + <code>data-figma-id</code>,或在 <code>reports.config.json</code> 補上正確的選擇器對照。</div>`;
+    document.getElementById("v-dev").innerHTML="";
+    return;
+  }
   document.getElementById("v-kpi").innerHTML=`
    <div class="kpis">
      <div class="kpi"><b style="color:${s.c}">${d.score}%</b><span>整體還原度</span></div>

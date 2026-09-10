@@ -1,8 +1,15 @@
 {
-  "_note": "GitHub Actions 真實比對設定。fileKey/nodeId = Figma about section;siteUrl = 測試站。selectors 可選:未標 data-figma-id 的站,給 'key→CSS 選擇器' 對照檔路徑。可用 workflow 輸入覆寫。",
-  "fileKey": "nKPnENddbezQMZ5AVAKs7c",
-  "nodeId": "11696-7310",
+  "_note": "GitHub Actions 真實比對設定。目前用 specFile 模式:以既有『設計規格(帶 CSS 選擇器)』對照即時抓的網站 DOM,立即產出有比對的真結果(適合設計稿尚未用 key 命名、但網站有穩定選擇器)。",
+  "_modes": "specFile = 規格對照(免 Figma token);section = 用 Figma REST 讀已用 key 命名的 section(需 data-figma-id 對位,見 _sectionMode)。",
+  "specFile": "samples/mx_figma_spec.json",
+  "name": "MX about 桌機 1440",
+  "width": 1440,
   "siteUrl": "https://bizdev.medialand.com.tw/demo/2021_02_MX_website/#/about",
   "outDir": "reports",
-  "selectors": null
+  "_sectionMode": {
+    "說明": "要改用 Figma REST 直讀 section,刪掉上面的 specFile,改用下列欄位(並在 repo 設 FIGMA_TOKEN);前提是 Figma 圖層用 key:命名、網站元素有 data-figma-id。",
+    "fileKey": "nKPnENddbezQMZ5AVAKs7c",
+    "nodeId": "11696-7310",
+    "selectors": null
+  }
 }
